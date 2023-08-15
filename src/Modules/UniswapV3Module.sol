@@ -11,30 +11,22 @@ import "src/Interfaces/IWETH.sol";
 */
 
 contract UniswapV3Module {
-    uint24 poolFee = 3000;
+    uint24 public constant poolFee = 3000;
     Router public immutable router;
     Factory public immutable factory;
-    address SmartOrderRouter;
-    bool initialise;
+    address immutable SmartOrderRouter;
+
     modifier OnlySmartOrderRouter() {
-        require(
-            msg.sender == SmartOrderRouter,
-            "Caller is not the smart order router"
-        );
-        _;
-    }
-    modifier _init() {
-        if (initialise != false) {
-            revert("Already initialised");
+        if (msg.sender != SmartOrderRouter) {
+            revert("Caller is S.O.R");
         }
         _;
-        initialise = true;
     }
 
-    constructor(address _router, address _factory) {
-        router = Router(_router);
-
+    constructor(address _SmartOrderrouter, address _factory, address _router) {
+        SmartOrderRouter = _SmartOrderrouter;
         factory = Factory(_factory);
+        router = Router(_router);
     }
 
     /**
@@ -44,7 +36,7 @@ contract UniswapV3Module {
       @param _amountIn:The  _tokenIn amount a  user is offering for a trade
      
       @return return the amount of _tokenOut a user would get if _amountIn of _tokenIn is traded
-      @Price of a token0 in terms of token1 ==1.0001^tick{i.e Price is gotten from the last 60 seconds}
+      @Price of a token0 in terms of token1 ==1.0001^tick{i.e Price is gotten from the last 60 seconds} in preciseUnit
      */
     ///=========GETTERS=========///
     ///=========================///
@@ -53,22 +45,16 @@ contract UniswapV3Module {
         address _tokenIn,
         address _tokenOut,
         uint256 _amountIn
-    ) external view returns (uint256 _amountOut) {
+    ) external view OnlySmartOrderRouter returns (uint256 _amountOut) {
         address _pool = factory.getPool(_tokenIn, _tokenOut, poolFee);
         if (_pool == address(0)) {
             revert("Pool doesn't exist");
         }
         (uint160 _sqrtPrice, , , , , , ) = IUniswapPool(_pool).slot0();
-        uint256 _price = (_sqrtPrice / 2 ** 96) ** 2;
-        _amountOut = _price * _amountIn;
+        _amountOut = SqrtPrice.ToPrice(_sqrtPrice) * _amountIn;
 
         //1.0001^tick=price of token*_amountIn
-    }
-
-    function init(address _router) public _init {
-        require(_router != address(0));
-
-        SmartOrderRouter = _router;
+        //Price=(sqrtPrice/2^96)^2
     }
 
     /**
@@ -123,7 +109,7 @@ contract UniswapV3Module {
         bytes memory _encodedData;
         for (uint i; i < _path.length; i++) {
             //encoded data appended to the newly created data || concatenated to the old data
-            //(token[i],fee[i],token[i++])appended(token[i++],fee[i++],token[i+++])
+            //(token[i],fee[i],token[i++])append(token[i++],fee[i++],token[i+++])
             _encodedData = abi.encodePacked(
                 _encodedData,
                 abi.encodePacked(_path[i], poolFee, _path[i++])

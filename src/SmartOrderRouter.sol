@@ -6,6 +6,7 @@ import "src/Libraries/SafeERC20.sol";
 import "openzeppelin/access/Ownable.sol";
 import "src/Libraries/AddressUtils.sol";
 import "src/Interfaces/IWETH.sol";
+import "src/Interfaces/IUniswapV3.sol";
 
 /**Abstract:Smart order router is an algorithm used to find the best available price,liquidity & conditions for a trade
  *Find best price across multiple Dexes in a network of Dexes,execute trade on the  most efficient dex
@@ -23,8 +24,8 @@ contract SmartOrderRouter is Ownable {
     //=================//
     address[] Modules;
     struct Module_detail {
-        uint256 current_Price;
-        uint256 _index;
+        uint240 current_Price;
+        uint16 _index;
     }
     address immutable weth;
     //Modules support for multiSwap
@@ -41,8 +42,7 @@ contract SmartOrderRouter is Ownable {
     event AddedModule(address[] _module);
     event RemoveModule(address _module);
 
-    constructor(address[] memory _modules, address _weth) {
-        Modules = _modules;
+    constructor(address _weth) {
         weth = _weth;
     }
 
@@ -73,8 +73,8 @@ contract SmartOrderRouter is Ownable {
             uint256 _amount = abi.decode(data, (uint256));
 
             if (_amount > cached_details.current_Price) {
-                cached_details.current_Price = _amount;
-                cached_details._index = i;
+                cached_details.current_Price = uint240(_amount);
+                cached_details._index = uint16(i);
             }
             unchecked {
                 i++;
@@ -95,6 +95,16 @@ contract SmartOrderRouter is Ownable {
      */
     //========WRITE-METHODS=======//
     //============================//
+    /**
+     *Add a single module to the list of modules
+     * @param _module :New module to a list of Modules
+     */
+    function addModule(address _module) external returns (uint256 _index) {
+        require(_module != address(0));
+        Modules.push(_module);
+        _index = Modules.length - 1;
+    }
+
     function SwapTokensSingleTokensForTokens(
         uint256 _amountIn,
         address tokenIn,
@@ -161,7 +171,9 @@ contract SmartOrderRouter is Ownable {
                 ++i;
             }
         }
+        IERC20(_path[_path.length - 1]).safeTransfer(msg.sender, tempAmt);
         _amountOut = tempAmt;
+
         emit MultiSwap(_path, _amountOut, msg.sender);
     }
 
@@ -306,6 +318,11 @@ contract SmartOrderRouter is Ownable {
         emit AddedModule(_newModule);
     }
 
+    /**
+     *Execute an arbitrage either within a single dex || Multiple dex
+     *params _dexes Array of decentralized-Exchanges to execute operations
+     */
+
     function removeModule(address _module, uint256 _index) public onlyOwner {
         if (_module == address(0)) {
             Modules.removeStorage(Modules[_index]);
@@ -313,6 +330,25 @@ contract SmartOrderRouter is Ownable {
             Modules.removeStorage(_module);
         }
         emit RemoveModule(Modules[_index]);
+    }
+
+    function ArbitrageSingle(
+        address[] memory _path,
+        uint256 _amountIn,
+        uint256 _index,
+        bytes memory _payload
+    ) external returns (uint256 _profit) {
+        bytes memory payload = abi.encodeWithSignature(
+            "flashloan(address[],uint256,bytes)",
+            _path,
+            _amountIn,
+            _payload
+        );
+        (bool sucess, bytes memory returndata) = Modules[_index].call(payload);
+        if (!sucess) {
+            revert("Flasloan failed");
+        }
+        _profit = abi.decode(returndata, (uint256));
     }
 
     receive() external payable {
