@@ -107,68 +107,6 @@ contract UniswapV2Module {
         _swapAmountOut = _amountsOut[_length];
     }
 
-    /**
-     *Flashloan : Users can take advantage of this method to exploit an arbitrage
-     *Users spots an arbitrage takes a flashloan, if profitable they get to keep the profit
-     */
-    function flashloan(
-        bytes[] memory _payload,
-        uint256[] memory _amounts,
-        address[] memory _tokens
-    ) external {
-        address _pair = UniswapV2Library.pairFor(
-            factory,
-            _tokens[0],
-            _tokens[1]
-        );
-        bytes memory data = abi.encodePacked(abi.encode(_payload,_tokens));
-
-        IUniswapV2Pair(_pair).swap(
-            _amounts[0],
-            _amounts[1],
-            address(this),
-            data
-        );
-    }
-
-    function uniswapV2Call(
-        address _caller,
-        uint256 _amount0,
-        uint256 _amount1,
-        bytes memory _data
-    ) external returns (uint256 _profit) {
-        (bytes[] memory _payload, address[] memory _tokens) = abi.decode(
-            _data,
-            (bytes[], address[])
-        );
-        uint256 _amountOut;
-        for (uint8 s; s < _payload.length; ++s) {
-            if (s != _payload.length - 1) {
-                (bool sucess, ) = address(this).call(_payload[s]);
-                if (!sucess) {
-                    revert("Trade failed");
-                }
-            } else {
-                (bool sucess, bytes memory _returndata) = address(this).call(
-                    _payload[s]
-                );
-                if (!sucess) {
-                    revert("Trade failed");
-                }
-                _amountOut = abi.decode(_returndata, (uint256));
-            }
-            uint256 _loanAmount = _amount0 == 0 ? _amount1 : _amount0;
-            require(_amountOut > _loanAmount);
-            if (_loanAmount == _amount0) {
-                IERC20(_tokens[0]).safeTransfer(msg.sender, _loanAmount);
-            } else {
-                IERC20(_tokens[1]).safeTransfer(msg.sender, _loanAmount);
-            }
-            _profit = _amountOut - _loanAmount;
-            IERC20(_tokens[1]).safeTransfer(_caller, _profit);
-        }
-    }
-
     fallback() external payable {
         if (msg.sender != SmartOrderRouter) {
             revert("unrecognised caller");
