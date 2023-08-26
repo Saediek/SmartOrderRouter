@@ -8,10 +8,11 @@ import "src/Libraries/AddressUtils.sol";
 import "src/Interfaces/IWETH.sol";
 import "src/Interfaces/IUniswapV3.sol";
 
-/**Abstract:Smart order router is an algorithm used to find the best available price,liquidity & conditions for a trade
+/**
+ *Abstract:Smart-order-router is Dapp used to find the best available price,liquidity & conditions for a trade in a network.
  *Find best price across multiple Dexes in a network of Dexes,execute trade on the  most efficient dex
- *DEXES:UNISWAPV2,UNISWAPV3,CURVE-FINANCE,DYDX,BALANCER,SUSHI,LOOPRING,BANCOR,FRXSWAP ,PANCAKE...
- *Owner could add dexes
+ *
+ *
  */
 
 contract SmartOrderRouter is Ownable {
@@ -35,7 +36,7 @@ contract SmartOrderRouter is Ownable {
         bool supportsFlashloans;
     }
     address immutable weth;
-    address flashloanModule;
+    address immutable flashloanModule;
 
     //Modules support for multiSwap
     mapping(address => bool) SupportMultiSwap;
@@ -58,15 +59,21 @@ contract SmartOrderRouter is Ownable {
         _;
     }
 
-    constructor(address _weth) {
+    constructor(address _weth, address _flashModule) {
         weth = _weth;
+        flashloanModule = _flashModule;
     }
 
-    //getBestPrice for a trade
-    //getRouter for if pools exists if they exists get their prices and compare their pools
-    // The best prices:would be returned
     //========VIEW-METHODS========//
     //============================//
+    ///@dev getBestPrice for a Single(i.e token0->token1)
+    /**
+     * @param _token1:Address of the BaseToken
+     * @param _token2:Address of the quote Token
+     * @param  _amountIn: Amount of Base Token a user wants to trade
+     * _price :The Best price for the trade
+     * _pool  :Address of the Module
+     */
     function getBestPricesForSingleSwap(
         address _token1,
         address _token2,
@@ -74,7 +81,7 @@ contract SmartOrderRouter is Ownable {
     ) public view returns (uint256 _price, address pool) {
         Module_detail memory cached_details;
 
-        for (uint256 i; i < Modules.length; ) {
+        for (uint8 i; i < Modules.length; ) {
             (bool sucess, bytes memory data) = Modules[i].adapter.staticcall(
                 abi.encodeWithSignature(
                     "getPrice(address,address,uint256)",
@@ -105,10 +112,6 @@ contract SmartOrderRouter is Ownable {
         address[] memory _path
     ) internal view returns (uint256 _amountOut, address _module) {}
 
-    /**
-     *
-     *
-     */
     //========WRITE-METHODS=======//
     //============================//
     /**
@@ -125,22 +128,18 @@ contract SmartOrderRouter is Ownable {
         string memory _description,
         uint256 _fees,
         bool _supportsFlashloans
-    ) external returns (uint8 _index) {
+    ) external onlyOwner returns (uint8 _index) {
         require(_adapter != address(0));
-        module memory _cached = module(
-            _adapter,
-            _name,
-            _description,
-            _fees,
-            _supportsFlashloans
+
+        Modules.push(
+            module(_adapter, _name, _description, _fees, _supportsFlashloans)
         );
-        Modules.push(_cached);
         _index = uint8(Modules.length - 1);
         emit AddedModule(_name, _adapter, _index, _supportsFlashloans);
     }
 
     /**
-     *Remove an existing module
+     * @dev Remove an existing module
      @param _index the index of the module would throw if out of bound
      */
     function removeModule(uint8 _index) external {
@@ -180,6 +179,7 @@ contract SmartOrderRouter is Ownable {
             _amountIn,
             _minAmountOut
         );
+
         (bool sucess, bytes memory returndata) = _module.call(payload);
         if (!sucess) {
             revert("SingleSwap Failed");
@@ -381,7 +381,8 @@ contract SmartOrderRouter is Ownable {
     }
 
     /**
-     *Execute an arbitrage on a single Module
+     *Execute an arbitrage Multiple dexes
+     * @dev actions should be pre-calculated and evaluated before calling the function
      *An arbitrage on a single Module is more like a list of methods aiming at a profit
      *_path[0] && _path[_path.length-1] must be same token.
      */
