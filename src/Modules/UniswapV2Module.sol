@@ -76,6 +76,7 @@ contract UniswapV2Module {
         address _tokenOut,
         uint256 _minOut
     ) external OnlySmartOrderRouter returns (uint256 _swapAmount) {
+        IERC20(_tokenIn).safeApprove(address(ROUTER), _amountIn);
         address[] memory path = new address[](2);
         path[0] = _tokenIn;
         path[1] = _tokenOut;
@@ -103,6 +104,7 @@ contract UniswapV2Module {
         address[] memory _path,
         uint256 _minOut
     ) external OnlySmartOrderRouter returns (uint256 _swapAmountOut) {
+        IERC20(_path[0]).safeApprove(address(ROUTER), _amountIn);
         uint256[] memory _amountsOut = ROUTER.swapExactTokensForTokens(
             _amountIn,
             _minOut,
@@ -126,6 +128,9 @@ contract UniswapV2Module {
             _tokens[0],
             _tokens[1]
         );
+        if (pair == address(0)) {
+            revert("Pair doesn't Exists");
+        }
         IUniswapV2Pair(pair).swap(
             _amounts[0],
             _amounts[1],

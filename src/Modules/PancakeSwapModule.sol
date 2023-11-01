@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 import "src/Interfaces/IUniswapV2.sol";
 import "src/Interfaces/IERC20.sol";
+import "src/Libraries/SafeERC20.sol";
 
 /**
 * Abstract:Pancake Dex Module used to getPrice of pair(i.e token1/token2),perform Multiswap and Single Swap
@@ -9,6 +10,7 @@ import "src/Interfaces/IERC20.sol";
  */
 
 contract UniswapV2Modules {
+    using SafeERC20 for *;
     address immutable Pancake_factory;
     IUniswapV2Router Pancake_Router;
     address immutable SmartOrderRouter;
@@ -70,7 +72,7 @@ contract UniswapV2Modules {
         address[] memory path = new address[](2);
         path[0] = _tokenIn;
         path[1] = _tokenOut;
-        IERC20(_tokenIn).approve(address(Pancake_Router), _amountIn);
+        IERC20(_tokenIn).safeApprove(address(Pancake_Router), _amountIn);
 
         uint256[] memory _AmountsOut = Pancake_Router.swapExactTokensForTokens(
             _amountIn,
@@ -84,7 +86,7 @@ contract UniswapV2Modules {
             "AmountOut does not exceed Min"
         );
         _amountOut = _AmountsOut[0];
-        IERC20(_tokenIn).approve(address(Pancake_Router), 0);
+        IERC20(_tokenIn).safeApprove(address(Pancake_Router), 0);
     }
 
     /**
@@ -95,6 +97,7 @@ contract UniswapV2Modules {
     @param _path : An array  of token addresses that are traded sequential i.e {Token[i]-->Token[i++]....Token[n-1}
     @param _minOut : The Minimum amount of acceptable Token[n-1] the user is willing to accept
     @return _swapAmountOut :The amount of Token[n-1] received by the user from  the trade 
+    * Extra scope to prevent stack to deep.
 
      */
 
@@ -103,13 +106,18 @@ contract UniswapV2Modules {
         address[] memory _path,
         uint256 _minOut
     ) external OnlySmartOrderRouter returns (uint256 _swapAmountOut) {
-        uint256[] memory _amountsOut = Pancake_Router.swapExactTokensForTokens(
-            _amountIn,
-            _minOut,
-            _path,
-            msg.sender,
-            block.timestamp
-        );
-        _swapAmountOut = _amountsOut[_amountsOut.length - 1];
+        {
+            IERC20(_path[0]).safeApprove(address(Pancake_Router), _amountIn);
+            uint256[] memory _amountsOut = Pancake_Router
+                .swapExactTokensForTokens(
+                    _amountIn,
+                    _minOut,
+                    _path,
+                    msg.sender,
+                    block.timestamp
+                );
+            _swapAmountOut = _amountsOut[_amountsOut.length - 1];
+            IERC20(_path[0]).safeApprove(address(Pancake_Router), 0);
+        }
     }
 }

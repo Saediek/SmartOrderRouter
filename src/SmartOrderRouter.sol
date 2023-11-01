@@ -119,8 +119,8 @@ contract SmartOrderRouter is Ownable {
      * @param _adapter :Address of the new module
      * @param _name : Name of module
      * @param _description :Brief description of the module
-     *@param _fees : Fee of the module
-     *@param _supportsFlashloans does the Module supports flashloans
+     * @param _fees : Fee of the module
+     * @param _supportsFlashloans does the Module supports flashloans
      */
     function addModule(
         address _adapter,

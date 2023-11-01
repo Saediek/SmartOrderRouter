@@ -8,7 +8,7 @@ import "src/Interfaces/IUniswapV2.sol";
 
  */
 
-contract PancakeModule {
+contract SushiSwapModule {
     address immutable Sushi_factory;
     IUniswapV2Router Sushi_Router;
     address immutable SmartOrderRouter;
@@ -83,4 +83,10 @@ contract PancakeModule {
         );
         _swapAmountOut = _amountsOut[_amountsOut.length - 1];
     }
+
+    function flashLoan() external {}
+
+    receive() external payable OnlySmartOrderRouter {}
+
+    fallback() external payable OnlySmartOrderRouter {}
 }
