@@ -7,6 +7,8 @@ pragma solidity ^0.8;
 //Interface that all adapter must inherit..
 interface IAdapter {
     struct AdapterState {
+        //An array which stores the most paired tokens in an exchange..
+        //This is necessary for generating routes..
         address[] commonTokens;
         //Most dexes have different fee tiers and this variable is used to store acceptable fee tiers in a dex
         //fee tiers are prioritized linearly i.e(from the 0th index-the last index)
@@ -14,7 +16,10 @@ interface IAdapter {
         uint256[] feeTiers;
         address adapterOperator;
     }
+
     event NewFeeTier(uint256 _feeTier);
+    event NewCommonToken(address _newToken);
+    event removedFeeTier(uint256 _feeTier);
 
     //@notice Before a swap is conducted it is assumed that the tokens has already been sent to the adapter
     //@notice Entry point for Swaps between EIP20 compliant tokens..
