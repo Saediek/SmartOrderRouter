@@ -12,3 +12,7 @@ This way the router is incentivised to beat the minimum expected amount and user
 ## Adapters
 Adapters are Smart contracts which allows the router to interact with a Dex || an aggregator.
 Aggregators are added to the adapter list to make sure the rates are more accurate
+Adapters allows the router to forward trades ,read latest prices and so on..
+## Ownership
+The SOR maintains an authority to manage adapters .ie(adding ,removing adapters).
+
