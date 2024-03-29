@@ -6,7 +6,7 @@ pragma solidity ^0.8;
 
 import "../Interfaces/IAdapter.sol";
 
-contract UniswapV3Adapter is IAdapter {
+abstract contract UniswapV3Adapter is IAdapter {
     string public constant Name = "UNISWAP-V3-ADAPTER";
 
     function Swap(
@@ -17,5 +17,8 @@ contract UniswapV3Adapter is IAdapter {
         address _receiver
     ) external payable returns (uint256) {}
 
-    function computeAmountOut(address[] memory _tokens, uint256 _amountIn) external view returns (uint256 _amountOut) {}
+    function computeAmountOut(
+        address[] memory _tokens,
+        uint256 _amountIn
+    ) external view returns (uint256 _amountOut) {}
 }
