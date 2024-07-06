@@ -8,7 +8,7 @@ import "src/Interfaces/IWETH.sol";
 
 contract SmartOrderRouter is ISmartOrderRouter {
     using SafeERC20 for IERC20;
-    //restrict access control of some functionalities to a specific address.
+    ///restrict access control of some functionalities to a specific address.
 
     modifier onlyOperator() {
         if (msg.sender != routerState.operator) {
@@ -16,7 +16,7 @@ contract SmartOrderRouter is ISmartOrderRouter {
         }
         _;
     }
-
+    /// Modifier to ensure the router is not in the current state it's about to enter assymetry to the 'notPaused' modifier
     modifier pause(bool _state) {
         require(routerState.isPause != _state);
         _;
@@ -65,15 +65,24 @@ contract SmartOrderRouter is ISmartOrderRouter {
         }
         //Get the best rate from all adapters and return the best rate and the index of the adapter
         //offering the best rate..
-        (uint256 _index, uint256 _expectedAmt) = _fetchBestRate(_tokenRoute, _amountIn, _reroute);
+        (uint256 _index, uint256 _expectedAmt) = _fetchBestRate(
+            _tokenRoute,
+            _amountIn,
+            _reroute
+        );
         if (_expectedAmt < _minAmountOut) {
             revert();
         }
         AdapterInfo memory _adapter = routerState.adapters[_index];
         _handleTransfer(_tokenRoute[0], _adapter._adapterAddress, _amountIn);
 
-        _expectedAmt =
-            IAdapter(_adapter._adapterAddress).Swap(_tokenRoute, _amountIn, _minAmountOut, _receiver, _reroute);
+        _expectedAmt = IAdapter(_adapter._adapterAddress).Swap(
+            _tokenRoute,
+            _amountIn,
+            _minAmountOut,
+            _receiver,
+            _reroute
+        );
         //cache the dstToken in memory
         address _dstToken = _tokenRoute[_tokenRoute.length - 1];
         uint256 _routerShare = _split(_expectedAmt - _minAmountOut, _dstToken);
@@ -89,15 +98,17 @@ contract SmartOrderRouter is ISmartOrderRouter {
         emit SwapCompleted(res);
     }
 
-    function computeAmountOut(address[] memory _token, uint256 _amountIn, bool _reroute)
-        external
-        view
-        returns (uint256 _bestRate)
-    {
+    function computeAmountOut(
+        address[] memory _token,
+        uint256 _amountIn,
+        bool _reroute
+    ) external view returns (uint256 _bestRate) {
         (, _bestRate) = _fetchBestRate(_token, _amountIn, _reroute);
     }
 
-    function addAdapter(AdapterInfo memory _adapterInfo) external onlyOperator returns (uint256 _index) {
+    function addAdapter(
+        AdapterInfo memory _adapterInfo
+    ) external onlyOperator returns (uint256 _index) {
         _validateInfo(_adapterInfo);
 
         _index = routerState.adapters.length;
@@ -114,7 +125,7 @@ contract SmartOrderRouter is ISmartOrderRouter {
     }
 
     //Pauses or UnPauses Swap functionalities in the router
-    //Actions could be carried by only the operator which is enforced with
+    //Actions could be carried out  by only the operator which is enforced with
     //an `onlyOperator` modifier..
     function pauseRouter(bool _state) external onlyOperator pause(_state) {
         routerState.isPause = _state;
@@ -136,19 +147,20 @@ contract SmartOrderRouter is ISmartOrderRouter {
      * Best Price is gotten by looping through the  adapters and fetching the current rate they offer for
      *  the Swap, the adapter with the highest rate wins the swap..
      */
-    function _fetchBestRate(address[] memory _tokens, uint256 _amountIn, bool _reroute)
-        internal
-        view
-        returns (uint8 _indexOfAdapter, uint256 _amountOut)
-    {
+    function _fetchBestRate(
+        address[] memory _tokens,
+        uint256 _amountIn,
+        bool _reroute
+    ) internal view returns (uint8 _indexOfAdapter, uint256 _amountOut) {
         AdapterInfo[] memory _adapters = routerState.adapters;
         for (uint8 i; i < _adapters.length; i++) {
-            uint256 _res = IAdapter(_adapters[i]._adapterAddress).computeAmountOut(_tokens, _amountIn, _reroute);
-            if (_res <= _amountOut) {
-                continue;
-            }
-            _indexOfAdapter = i;
-            _amountOut = _res;
+            try
+                IAdapter(_adapters[i]._adapterAddress).computeAmountOut(
+                    _tokens,
+                    _amountIn,
+                    _reroute
+                )
+            returns (uint256 amountOut) {} catch {}
         }
     }
 
@@ -156,11 +168,18 @@ contract SmartOrderRouter is ISmartOrderRouter {
         IWETH(WETH).deposit{value: msg.value}();
     }
 
-    function _handleTransfer(address _token, address _adapter, uint256 _amount) internal {
+    function _handleTransfer(
+        address _token,
+        address _adapter,
+        uint256 _amount
+    ) internal {
         IERC20(_token).safeTransferFrom(msg.sender, _adapter, _amount);
     }
 
-    function _split(uint256 _diff, address _token) internal returns (uint256 _routerShare) {
+    function _split(
+        uint256 _diff,
+        address _token
+    ) internal returns (uint256 _routerShare) {
         uint256 _routerSplit = routerState.feeSplit;
         if (_routerSplit != 0) {
             _routerShare = (_routerSplit * _diff) / MAX_BPS;
@@ -185,7 +204,10 @@ contract SmartOrderRouter is ISmartOrderRouter {
         return routerState.feeSplit;
     }
 
-    function claimWinnings(address[] memory _tokens, address _receiver) external onlyOperator {
+    function claimWinnings(
+        address[] memory _tokens,
+        address _receiver
+    ) external onlyOperator {
         require(_receiver != address(0));
         for (uint8 i; i < _tokens.length; i++) {
             uint256 value = IERC20(_tokens[i]).balanceOf(address(this));

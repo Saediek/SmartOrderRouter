@@ -108,7 +108,7 @@ contract Uniswap2Adapter is IAdapter {
                 continue;
             }
         }
-        require(_route[1] != address(0));
+        require(_route[1] != address(0), "PNF");
 
         //checks if there exist a pool for route[1] and tokenOut
         ///first case we need to check if there exist a pool for tokenOut and _route[1]
