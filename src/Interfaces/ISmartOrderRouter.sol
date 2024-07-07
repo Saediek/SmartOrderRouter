@@ -13,6 +13,7 @@ pragma solidity ^0.8;
 interface ISmartOrderRouter {
     error unauthorisedOperation(address);
     error InvalidAdapter(AdapterInfo);
+    error SlippageExceeded(address, address, uint256, uint256);
 
     struct State {
         //1st Slot
@@ -64,13 +65,16 @@ interface ISmartOrderRouter {
         bool _reroute
     ) external payable returns (uint256);
 
-    function computeAmountOut(address[] memory _token, uint256 _amountIn, bool _reroute)
-        external
-        view
-        returns (uint256);
+    function computeAmountOut(
+        address[] memory _token,
+        uint256 _amountIn,
+        bool _reroute
+    ) external view returns (uint256);
 
     //PERMISSIONED FUNCTIONALITIES//
-    function addAdapter(AdapterInfo memory _adapterInfo) external returns (uint256);
+    function addAdapter(
+        AdapterInfo memory _adapterInfo
+    ) external returns (uint256);
 
     function removeAdapter(uint256 _index) external;
 
@@ -85,5 +89,8 @@ interface ISmartOrderRouter {
 
     function getRouterSplit() external view returns (uint16);
 
-    function claimWinnings(address[] memory _tokens, address _receiver) external;
+    function claimRouterShares(
+        address[] memory _tokens,
+        address _receiver
+    ) external;
 }
