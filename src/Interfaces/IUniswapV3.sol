@@ -12,5 +12,15 @@ interface IUniswapV3 {
         uint256 amountOutMinimum;
     }
 
-    function exactInput(ExactInputParams calldata params) external payable returns (uint256 amountOut);
+    function exactInput(
+        ExactInputParams calldata params
+    ) external payable returns (uint256 amountOut);
+}
+
+interface IUniswapFactory {
+    function getPool(
+        address _token0,
+        address _token1,
+        uint24 _fee
+    ) external view returns (address);
 }

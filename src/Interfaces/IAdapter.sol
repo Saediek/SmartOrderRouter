@@ -15,6 +15,7 @@ interface IAdapter {
         //Another tier may be considered if no pool exists for the previous tier..
         uint256[] feeTiers;
         address adapterOperator;
+        address SmartOrderRouter;
     }
 
     event NewFeeTier(uint256 _feeTier);
@@ -30,7 +31,7 @@ interface IAdapter {
         uint256 _minAmountOut,
         address _receiver,
         bool _reroute
-    ) external payable returns (uint256);
+    ) external  payable returns (uint256);
 
     /**
      * Fetches the best price for a swap from _token-In->_token-Out

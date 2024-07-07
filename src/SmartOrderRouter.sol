@@ -8,7 +8,7 @@ import "src/Interfaces/IWETH.sol";
 
 contract SmartOrderRouter is ISmartOrderRouter {
     using SafeERC20 for IERC20;
-    ///restrict access control of some functionalities to a specific address.
+    ///@dev restrict access control of some functionalities to the Operator address..
 
     modifier onlyOperator() {
         if (msg.sender != routerState.operator) {
@@ -16,13 +16,12 @@ contract SmartOrderRouter is ISmartOrderRouter {
         }
         _;
     }
-    /// Modifier to ensure the router is not in the current state it's about to enter assymetry to the 'notPaused' modifier
+    ///@dev  Modifier to ensure the router is not in the current state it's about to enter. Assymetry to the 'notPaused' modifier
     modifier pause(bool _state) {
         require(routerState.isPause != _state);
         _;
     }
-    //use to pause and un-pause the router in different state
-
+    ///@dev Inverse of the 'pause' Modifier.
     modifier notPaused() {
         require(!routerState.isPause);
         _;
@@ -31,7 +30,7 @@ contract SmartOrderRouter is ISmartOrderRouter {
     State internal routerState;
     address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     //represents the Maximum  shares in  bps that the router is
-    //entitled toi.e  5% of the difference between amountOut-minAmount.
+    //entitled to i.e  5% of the difference between amountOut-minAmount.
     uint256 constant MAX_SPLIT = 500;
 
     uint256 constant MAX_BPS = 10000;
@@ -49,6 +48,15 @@ contract SmartOrderRouter is ISmartOrderRouter {
         routerState.feeSplit = _routerShareBps;
         routerState.isPause = false;
     }
+
+    /**
+     *
+     * @param _amountIn : Amount of tokenIn a user is willing to trade.
+     * @param _minAmountOut : Minimum expected amount of tokenOut to manage slippage.
+     * @param _receiver :receiver of the resulting tokenOut.
+     * @param _tokenRoute :An array of tokens the trade would route through ,this includes the tokenIn and tokenOut.
+     * @param _reroute If enabled the initial route is discarded and a new route generated.
+     */
 
     function Swap(
         uint256 _amountIn,
@@ -71,10 +79,20 @@ contract SmartOrderRouter is ISmartOrderRouter {
             _reroute
         );
         if (_expectedAmt < _minAmountOut) {
-            revert();
+            revert SlippageExceeded(
+                _tokenRoute[0],
+                _tokenRoute[_tokenRoute.length - 1],
+                _amountIn,
+                _expectedAmt
+            );
         }
         AdapterInfo memory _adapter = routerState.adapters[_index];
-        _handleTransfer(_tokenRoute[0], _adapter._adapterAddress, _amountIn);
+
+        _amountIn = _handleTransfer(
+            _tokenRoute[0],
+            _adapter._adapterAddress,
+            _amountIn
+        );
 
         _expectedAmt = IAdapter(_adapter._adapterAddress).Swap(
             _tokenRoute,
@@ -124,7 +142,7 @@ contract SmartOrderRouter is ISmartOrderRouter {
         _adapters.pop();
     }
 
-    //Pauses or UnPauses Swap functionalities in the router
+    //Pauses and UnPauses Swap functionalities in the router
     //Actions could be carried out  by only the operator which is enforced with
     //an `onlyOperator` modifier..
     function pauseRouter(bool _state) external onlyOperator pause(_state) {
@@ -145,14 +163,16 @@ contract SmartOrderRouter is ISmartOrderRouter {
 
     /**
      * Best Price is gotten by looping through the  adapters and fetching the current rate they offer for
-     *  the Swap, the adapter with the highest rate wins the swap..
+     *  the Swap, the adapter with the highest is returned..
      */
     function _fetchBestRate(
         address[] memory _tokens,
         uint256 _amountIn,
         bool _reroute
-    ) internal view returns (uint8 _indexOfAdapter, uint256 _amountOut) {
+    ) internal view returns (uint8, uint256) {
         AdapterInfo[] memory _adapters = routerState.adapters;
+        uint8 _indexOfAdapter;
+        uint256 _bestRateCache = 0;
         for (uint8 i; i < _adapters.length; i++) {
             try
                 IAdapter(_adapters[i]._adapterAddress).computeAmountOut(
@@ -160,8 +180,14 @@ contract SmartOrderRouter is ISmartOrderRouter {
                     _amountIn,
                     _reroute
                 )
-            returns (uint256 amountOut) {} catch {}
+            returns (uint256 amountOut) {
+                if (amountOut > _bestRateCache) {
+                    _bestRateCache = amountOut;
+                    _indexOfAdapter = i;
+                }
+            } catch {}
         }
+        return (_indexOfAdapter, _bestRateCache);
     }
 
     function _wrap() internal {
@@ -172,8 +198,17 @@ contract SmartOrderRouter is ISmartOrderRouter {
         address _token,
         address _adapter,
         uint256 _amount
-    ) internal {
-        IERC20(_token).safeTransferFrom(msg.sender, _adapter, _amount);
+    ) internal returns (uint) {
+        uint256 _balBefore = 0;
+        if (msg.value > 0) {
+            ///wrapped-eth is stored in the contract..
+            _balBefore = IERC20(_token).balanceOf(_adapter);
+            IERC20(_token).safeTransfer(_adapter, _amount);
+        } else {
+            _balBefore = IERC20(_token).balanceOf(_adapter);
+            IERC20(_token).safeTransferFrom(msg.sender, _adapter, _amount);
+        }
+        return IERC20(_token).balanceOf(_adapter) - _balBefore;
     }
 
     function _split(
@@ -204,21 +239,28 @@ contract SmartOrderRouter is ISmartOrderRouter {
         return routerState.feeSplit;
     }
 
-    function claimWinnings(
+    function claimRouterShares(
         address[] memory _tokens,
         address _receiver
     ) external onlyOperator {
         require(_receiver != address(0));
         for (uint8 i; i < _tokens.length; i++) {
             uint256 value = IERC20(_tokens[i]).balanceOf(address(this));
-
-            IERC20(_tokens[i]).safeTransfer(_receiver, value);
+            if (value > 0) {
+                IERC20(_tokens[i]).safeTransfer(_receiver, value);
+            }
         }
     }
 
     function _validateInfo(AdapterInfo memory _info) internal pure {
         if (_info._adapterAddress == address(0) || _info._adapterFee == 0) {
             revert InvalidAdapter(_info);
+        }
+    }
+
+    receive() external payable {
+        if (msg.sender != WETH) {
+            revert unauthorisedOperation(msg.sender);
         }
     }
 }
