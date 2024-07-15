@@ -48,7 +48,8 @@ contract Uniswap2Adapter is IAdapter {
         uint256 _amountIn,
         uint256 _minAmountOut,
         address _receiver,
-        bool _reroute
+        bool _reroute,
+        bytes memory
     ) external payable returns (uint256) {
         return _swap(_tokens, _amountIn, _minAmountOut, _receiver, _reroute);
     }

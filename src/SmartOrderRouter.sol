@@ -63,7 +63,8 @@ contract SmartOrderRouter is ISmartOrderRouter {
         uint256 _minAmountOut,
         address _receiver,
         address[] memory _tokenRoute,
-        bool _reroute
+        bool _reroute,
+        bytes memory _data
     ) external payable notPaused returns (uint256 _amountOut) {
         //if ether is being sent then token-In must be weth..
         if (msg.value > 0) {
@@ -99,7 +100,8 @@ contract SmartOrderRouter is ISmartOrderRouter {
             _amountIn,
             _minAmountOut,
             _receiver,
-            _reroute
+            _reroute,
+            _data
         );
         //cache the dstToken in memory
         address _dstToken = _tokenRoute[_tokenRoute.length - 1];

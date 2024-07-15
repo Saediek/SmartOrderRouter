@@ -63,6 +63,7 @@ interface ISmartOrderRouter {
         address _receiver,
         address[] memory _tokenRoute,
         bool _reroute
+        ,bytes memory _data
     ) external payable returns (uint256);
 
     function computeAmountOut(

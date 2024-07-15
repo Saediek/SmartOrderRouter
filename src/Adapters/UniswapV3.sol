@@ -9,7 +9,7 @@ import {IERC20, SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IUniswapFactory, IUniswapV3} from "../Interfaces/IUniswapV3.sol";
 using SafeERC20 for IERC20;
 
-abstract contract UniswapV3Adapter is IAdapter {
+contract UniswapV3Adapter is IAdapter {
     string public constant Name = "UNISWAP-V3-ADAPTER";
     AdapterState private adapterState;
     IUniswapFactory private immutable FACTORY;
@@ -59,7 +59,12 @@ abstract contract UniswapV3Adapter is IAdapter {
         address _receiver,
         bool _reroute
     ) internal returns (uint256) {
+        //If it is specified..
         uint24[] memory _fees;
+        if (_data.length > 0) {
+            _fees = _decodeFeeTiers(_data);
+        }
+
         if (_reroute) {
             (_tokens, _fees) = _generateRoute(
                 _tokens[0],
@@ -68,11 +73,11 @@ abstract contract UniswapV3Adapter is IAdapter {
 
             ///
         }
+        bytes memory encodedPath = encodePath(_tokens, _fees);
 
         IERC20(_tokens[0]).forceApprove(address(ROUTER), _amountIn);
         IUniswapV3.ExactInputParams memory _params;
         if (_reroute) {
-            bytes memory encodedPath = encodePath(_tokens, _fees);
             _params = IUniswapV3.ExactInputParams(
                 encodedPath,
                 _receiver,
@@ -82,7 +87,7 @@ abstract contract UniswapV3Adapter is IAdapter {
             );
         } else {
             _params = IUniswapV3.ExactInputParams(
-                _data,
+                encodedPath,
                 _receiver,
                 block.timestamp,
                 _amountIn,
@@ -92,11 +97,25 @@ abstract contract UniswapV3Adapter is IAdapter {
         return ROUTER.exactInput(_params);
     }
 
+    function _decodeFeeTiers(
+        bytes memory _path
+    ) internal pure returns (uint24[] memory _feeTier) {
+        _feeTier = abi.decode(_path, (uint24[]));
+    }
+
     function encodePath(
         address[] memory _tokens,
         uint24[] memory _fees
-    ) internal pure returns (bytes memory _path) {}
+    ) internal pure returns (bytes memory _path) {
+        for (uint8 i; i < _tokens.length - 1; i++) {
+            //Path is an encoded Stream of bytes such that each stream:tokenIn,FeeTier,tokenOut..
+            _path = abi.encodePacked(_path, _tokens[i], _fees[i]);
+        }
+        _path = abi.encodePacked(_path, _tokens[_tokens.length - 1]);
+    }
 
+    ///@dev return a route such that there exists a pool between two intermediate tokens
+    //for a fee-Tier..
     function _generateRoute(
         address _tokenIn,
         address _tokenOut
@@ -109,7 +128,9 @@ abstract contract UniswapV3Adapter is IAdapter {
         address token1;
         ///Time-Complexity=x^2 +y..
         //where x=time to loop through common-Tokens..
+        //Common-Tokens are usually four:ETH,USDC,USDT,DAI
         {
+            //@note Done😎
             //Add scope to drop params from stack..
             for (uint8 i; i < cTokens.length; i++) {
                 address _ctoken = cTokens[i];
@@ -121,21 +142,20 @@ abstract contract UniswapV3Adapter is IAdapter {
                     if (poolExists(_tokenIn, _ctoken, _fee)) {
                         token0 = _ctoken;
                         _fee0 = _fee;
-                        break;
                     }
-                }
-                for (uint8 x; x < _feeTiers.length; x++) {
-                    uint24 _fee = uint24(_feeTiers[x]);
                     if (poolExists(_tokenOut, _ctoken, _fee)) {
                         token1 = _ctoken;
                         _fee1 = _fee;
-                        break;
                     }
                 }
             }
         }
         if (token0 == token1 && _fee0 == _fee1) {
             _route = new address[](3);
+            _route[0] = _tokenIn;
+            _route[1] = token0;
+            _route[2] = _tokenOut;
+
             _fees = new uint24[](2);
             _fees[0] = _fee0;
             _fees[1] = _fee1;
@@ -147,12 +167,18 @@ abstract contract UniswapV3Adapter is IAdapter {
             _route[3] = _tokenOut;
             _fees = new uint24[](3);
             _fees[0] = _fee0;
-            _fees[1] = 3000;
+            _fees[1] = 3000; //All ctokens have pools in the 3000 feeTier..
             _fees[2] = _fee1;
         }
 
         _validateRoute(_route);
     }
+
+    function computeAmountOut(
+        address[] memory _tokens,
+        uint256 _amountIn,
+        bool _reroute
+    ) external view returns (uint256 _amountOut) {}
 
     function poolExists(
         address _token0,

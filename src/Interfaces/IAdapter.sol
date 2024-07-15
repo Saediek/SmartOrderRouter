@@ -1,6 +1,6 @@
 /**
  * SPDX-License-Identifier:UNLICENSED
- * @author :Saediek || <Saediek@proton.me>
+ * @author :Saediek
  */
 pragma solidity ^0.8;
 
@@ -30,8 +30,9 @@ interface IAdapter {
         uint256 _amountIn,
         uint256 _minAmountOut,
         address _receiver,
-        bool _reroute
-    ) external  payable returns (uint256);
+        bool _reroute,
+        bytes memory _ancillaryData
+    ) external payable returns (uint256);
 
     /**
      * Fetches the best price for a swap from _token-In->_token-Out

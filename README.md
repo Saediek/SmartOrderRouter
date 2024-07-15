@@ -16,3 +16,5 @@ Adapters allows the router to forward trades ,read latest prices and so on..
 ## Ownership
 The SOR maintains an authority to manage adapters .ie(adding ,removing adapters).
 
+## To run fork-test set rpc-url in .env
+ i.e MAINNET_RPC=YOUR_RPC_URL //Obtainable from infura.io

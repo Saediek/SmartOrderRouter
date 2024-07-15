@@ -3,8 +3,8 @@
     "@openzeppelin/contracts": "^5.0.2"
   },
   "scripts": {
-    "start":"forge build ",
-    "test" :"forge test",
+    "run-app":"forge build ",
+    "run-test" :"forge test",
     "fork_test":""
     
 
